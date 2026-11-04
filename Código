@@ -1,0 +1,214 @@
+!pip install pymongo dnspython
+
+import os
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
+from bson.objectid import ObjectId
+
+uri = "mongodb+srv://alissonandradesilva506_db_user:<S38F1d4P874>@cluster0.ed3kdtf.mongodb.net/"
+client = MongoClient(uri)
+try:
+    client = MongoClient(uri, server_api = ServerApi('1'))
+    db = client['Livraria_Infinitum']
+    livros_collection = db['Livros']
+    client.admin.command("ping")
+    print("Connected successfully")
+    client.close()
+except Exception as e:
+    raise Exception("The following error occurred: ", e)
+
+def cadastrar_livro():
+  print("\n---- CADASTRAR NOVO LIVRO ----")
+  titulo = input("Título: ").strip()
+  genero = input("Gênero: ").strip()
+  autor = input("Autor: ").strip()
+  ano_lanc = int(input("Ano de lançamento: "))
+  estoque = int(input("Estoque: "))
+  try:
+    preco = float(input("Preço (R$): ").replace(',', '.'))
+  except ValueError:
+    preco = 0.0
+
+  if not titulo or not autor:
+    print("Título e Autor são obrigatórios!")
+    return
+
+  livro = {
+      "titulo": titulo,
+      "genero": genero,
+      "autor": autor,
+      "ano_lanc": ano_lanc,
+      "estoque": estoque,
+      "preco": preco
+  }
+
+  resultado = livros_collection.insert_one(livro)
+  print(f"Livro cadastrado com sucesso! ID: {resultado.inserted_id}")
+
+def consultar_livro():
+  while True:
+    print("\n---- CONSULTAR LIVRO ----")    
+    print("[1] Todos os livros")
+    print("[2] Por título")
+    print("[3] Por gênero")
+    print("[4] Por autor")
+    print("[0] Terminar consulta")
+    opcao = input("Como deseja consultar a coleção?: ").strip()
+
+    if opcao == "1":
+      try:
+        livros = livros_collection.find()
+        total = livros_collection.count_documents({})
+        
+        if total == 0:
+            print("Nenhum livro encontrado.")
+            return
+
+        for livro in livros:
+            print(f"ID: {livro['_id']} | {livro['titulo']} - {livro['autor']} ({livro['ano_lanc']}) | Gênero: {livro['genero']} | R$ {livro['preco']:.2f}")
+      except Exception as e:
+        print(f"Erro ao consultar: {e}")
+
+    elif opcao == "2":
+      tit_busca = input("Digite o título do livro que deseja consultar: ").strip()
+      query = {}
+      query["titulo"] = {"$regex": tit_busca, "$options": "i"}
+      try:
+        resultados = livros_collection.find(query)
+        encontrados = livros_collection.count_documents(query)
+        
+        if encontrados == 0:
+            print("Nenhum livro corresponde aos filtros selecionados.")
+            return
+
+        print(f"\n{encontrados} livro(s) encontrado(s):")
+        for livro in resultados:
+            print(f"ID: {livro['_id']} | {livro['titulo']} - {livro['autor']} | R$ {livro['preco']:.2f}")
+      except Exception as e:
+        print(f"Erro ao filtrar dados: {e}")
+
+    elif opcao == "3":
+      gen_busca = input("Digite o gênero de livro que deseja consultar: ").strip()
+      query = {}
+      query["genero"] = {"$regex": gen_busca, "$options": "i"}
+      try:
+        resultados = livros_collection.find(query)
+        encontrados = livros_collection.count_documents(query)
+        
+        if encontrados == 0:
+            print("Nenhum livro corresponde aos filtros selecionados.")
+            return
+
+        print(f"\n{encontrados} livro(s) encontrado(s):")
+        for livro in resultados:
+            print(f"ID: {livro['_id']} | {livro['titulo']} - {livro['autor']} | R$ {livro['preco']:.2f}")
+      except Exception as e:
+        print(f"Erro ao filtrar dados: {e}")
+    
+    elif opcao == "4":
+      aut_busca = input("Digite o autor que deseja consultar: ").strip()
+      query = {}
+      query["autor"] = {"$regex": aut_busca, "$options": "i"}
+      try:
+        resultados = livros_collection.find(query)
+        encontrados = livros_collection.count_documents(query)
+        
+        if encontrados == 0:
+            print("Nenhum livro corresponde aos filtros selecionados.")
+            return
+
+        print(f"\n{encontrados} livro(s) encontrado(s):")
+        for livro in resultados:
+            print(f"ID: {livro['_id']} | {livro['titulo']} - {livro['autor']} | R$ {livro['preco']:.2f}")
+      except Exception as e:
+        print(f"Erro ao filtrar dados: {e}")
+    elif opcao == "0":
+      print("\n Terminado consulta.")
+      break
+    else:
+      print("\n Não é uma opção válida")
+
+def atualizar_livro():
+  print("\n---- ATUALIZAR LIVRO ----")
+  id_busca = input("Digite o ID do livro que deseja atualizar: ").strip()
+
+  try:
+    id = (id_busca)
+  except: 
+    print("Livro não existe!")
+    return
+  
+  livro_atual = livros_collection.find_one({"_id": id_busca})
+  if not livro_atual:
+        print("Livro não encontrado.")
+        return
+
+  print(f"\nLivro selecionado: {livro_atual['titulo']} por {livro_atual['autor']}")
+  print("Insira os novos dados (Deixe em branco para MANTER o valor atual):")
+    
+  novo_titulo = input(f"Novo Título [{livro_atual.get('titulo')}]: ").strip()
+  novo_autor = input(f"Novo Autor [{livro_atual.get('autor')}]: ").strip()
+  novo_preco = input(f"Novo Preço [{livro_atual.get('preco')}]: ").strip()
+
+  campos_atualizados = {}
+  if novo_titulo: campos_atualizados["titulo"] = novo_titulo
+  if novo_autor: campos_atualizados["autor"] = novo_autor
+  if novo_preco:
+    try:
+      campos_atualizados["preco"] = float(novo_preco)
+    except ValueError:
+            print("Preço inválido. O preço original será mantido.")
+
+    if not campos_atualizados:
+        print("Nenhuma alteração informada.")
+        return
+
+    try:
+        livros_collection.update_one({"_id": id_busca}, {"$set": campos_atualizados})
+        print("Livro atualizado com sucesso!")
+    except Exception as e:
+        print(f"Erro ao atualizar: {e}")
+
+def excluir_livro():
+  print("\n---- EXCLUIR LIVRO ----")
+  tit_busca = input("Digite o título do livro que deseja excluir: ").strip()
+
+  try:
+    titulo = (tit_busca)
+  except:
+    print("Título não existe!")
+    return
+
+  resultado = livros_collection.delete_one({"titulo": titulo})
+
+  if resultado.deleted_count > 0:
+    print("Livro excluído com sucesso!")
+  else:
+    print("Livro não encontrado.")
+
+def menu():
+    while True:
+        print("\n" + "="*30)
+        print(" SISTEMA DA LIVRARIA ")
+        print("="*30)
+        print("1. Cadastrar Livro [C]")
+        print("2. Consultar Livros [R]")
+        print("3. Atualizar Livro [U]")
+        print("4. Excluir Livro [D]")
+        print("0. Sair")
+
+        opcao = input("\n Escolha uma opção: ").strip()
+
+        if opcao == "1":
+            cadastrar_livro()
+        elif opcao == "2":
+            consultar_livro()
+        elif opcao == "3":
+            atualizar_livro()
+        elif opcao == "4":
+            excluir_livro()
+        elif opcao == "0":
+            print("\n Encerrando aplicação. Até mais!")
+            break
+        else:
+            print("Isso não é uma opção! Tente de novo.")
